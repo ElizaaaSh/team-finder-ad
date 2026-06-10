@@ -1,4 +1,7 @@
-/team_finder/media/
+media/*
+!media/.gitkeep
+staticfiles/
+.DS_Store
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

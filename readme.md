@@ -105,3 +105,47 @@ python manage.py runserver
 Осталось всего ничего: реализовать весь проект!
 
 Если в процессе разработки способ развертывания приложения поменяется, обновите `readme.md` с пометкой ревьюеру, как запускать и проверять приложение.
+
+---
+
+## Дополнение для ревьюера: запуск готового проекта
+
+Проект реализован для варианта `TASK_VERSION=3`.
+
+Так как приложение теперь запускается вместе с PostgreSQL через Docker Compose, для проверки достаточно выполнить из корня проекта:
+
+```bash
+docker compose up --build
+```
+
+После запуска сайт будет доступен по адресу:
+
+```text
+http://localhost:8000
+```
+
+При старте контейнер автоматически выполняет миграции, создаёт тестовые данные и запускает Django-сервер.
+Данные PostgreSQL и загруженные аватары сохраняются в Docker volumes.
+
+Остановить проект:
+
+```bash
+docker compose down
+```
+
+Полностью пересоздать базу данных и media-файлы:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+Тестовые аккаунты:
+
+```text
+anna@example.com / password123
+pavel@example.com / password123
+maria@example.com / password123
+ivan@example.com / password123
+admin@example.com / admin12345
+```
