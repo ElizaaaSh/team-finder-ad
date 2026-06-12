@@ -1,9 +1,16 @@
 from django.conf import settings
 from django.db import models
+from django.urls import reverse
+
+from core.constants import (
+    PROJECT_NAME_MAX_LENGTH,
+    PROJECT_STATUS_MAX_LENGTH,
+    SKILL_NAME_MAX_LENGTH,
+)
 
 
 class Skill(models.Model):
-    name = models.CharField("Название навыка", max_length=124, unique=True)
+    name = models.CharField("Название навыка", max_length=SKILL_NAME_MAX_LENGTH, unique=True)
 
     class Meta:
         ordering = ["name"]
@@ -18,11 +25,11 @@ class Project(models.Model):
     STATUS_OPEN = "open"
     STATUS_CLOSED = "closed"
     STATUS_CHOICES = [
-        (STATUS_OPEN, "Open"),
-        (STATUS_CLOSED, "Closed"),
+        (STATUS_OPEN, "Открыт"),
+        (STATUS_CLOSED, "Закрыт"),
     ]
 
-    name = models.CharField("Название проекта", max_length=200)
+    name = models.CharField("Название проекта", max_length=PROJECT_NAME_MAX_LENGTH)
     description = models.TextField("Описание проекта", blank=True)
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -34,7 +41,7 @@ class Project(models.Model):
     github_url = models.URLField("Ссылка на GitHub", blank=True)
     status = models.CharField(
         "Статус проекта",
-        max_length=6,
+        max_length=PROJECT_STATUS_MAX_LENGTH,
         choices=STATUS_CHOICES,
         default=STATUS_OPEN,
     )
@@ -58,3 +65,6 @@ class Project(models.Model):
 
     def __str__(self) -> str:
         return self.name
+
+    def get_absolute_url(self):
+        return reverse("projects:detail", kwargs={"pk": self.pk})

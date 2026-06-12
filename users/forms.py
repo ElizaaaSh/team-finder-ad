@@ -1,31 +1,16 @@
 import re
-from urllib.parse import urlparse
 
 from django import forms
 from django.contrib.auth import authenticate
 from django.contrib.auth.forms import PasswordChangeForm as DjangoPasswordChangeForm
 from django.core.exceptions import ValidationError
 
+from core.constants import PHONE_PATTERN
+from core.forms import GitHubURLValidationMixin
 from .models import User
+from .services import normalize_phone
 
-
-PHONE_RE = re.compile(r"^(8|\+7)\d{10}$")
-
-
-def normalize_phone(phone: str) -> str:
-    phone = (phone or "").strip().replace(" ", "").replace("-", "")
-    if phone.startswith("8") and len(phone) == 11:
-        return "+7" + phone[1:]
-    return phone
-
-
-def validate_github_url(url: str) -> str:
-    if not url:
-        return url
-    host = urlparse(url).netloc.lower()
-    if host != "github.com" and not host.endswith(".github.com"):
-        raise ValidationError("Ссылка должна вести на GitHub.")
-    return url
+PHONE_RE = re.compile(PHONE_PATTERN)
 
 
 class RegisterForm(forms.ModelForm):
@@ -34,11 +19,6 @@ class RegisterForm(forms.ModelForm):
     class Meta:
         model = User
         fields = ["name", "surname", "email", "password"]
-        labels = {
-            "name": "Имя",
-            "surname": "Фамилия",
-            "email": "Имейл",
-        }
 
     def save(self, commit: bool = True):
         user = super().save(commit=False)
@@ -73,18 +53,10 @@ class LoginForm(forms.Form):
         return self.user_cache
 
 
-class EditProfileForm(forms.ModelForm):
+class EditProfileForm(GitHubURLValidationMixin, forms.ModelForm):
     class Meta:
         model = User
         fields = ["name", "surname", "avatar", "about", "phone", "github_url"]
-        labels = {
-            "name": "Имя",
-            "surname": "Фамилия",
-            "avatar": "Аватар",
-            "about": "О себе",
-            "phone": "Телефон",
-            "github_url": "Ссылка на GitHub",
-        }
         widgets = {
             "avatar": forms.FileInput(attrs={"accept": "image/*"}),
             "about": forms.Textarea(attrs={"rows": 4}),
@@ -99,9 +71,6 @@ class EditProfileForm(forms.ModelForm):
             if duplicate:
                 raise ValidationError("Пользователь с таким телефоном уже существует.")
         return phone
-
-    def clean_github_url(self):
-        return validate_github_url(self.cleaned_data.get("github_url", ""))
 
 
 class PasswordChangeForm(DjangoPasswordChangeForm):

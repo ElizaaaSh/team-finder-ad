@@ -1,46 +1,40 @@
-import random
+import hashlib
 import uuid
 from io import BytesIO
 
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.core.files.base import ContentFile
 from django.db import models
 from PIL import Image, ImageDraw, ImageFont
 
-
-class UserManager(BaseUserManager):
-    def create_user(self, email: str, password: str | None = None, **extra_fields):
-        if not email:
-            raise ValueError("Email обязателен")
-        email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
-        user.set_password(password)
-        user.save(using=self._db)
-        return user
-
-    def create_superuser(self, email: str, password: str | None = None, **extra_fields):
-        extra_fields.setdefault("is_staff", True)
-        extra_fields.setdefault("is_superuser", True)
-        extra_fields.setdefault("is_active", True)
-        extra_fields.setdefault("name", "Admin")
-        extra_fields.setdefault("surname", "TeamFinder")
-        extra_fields.setdefault("phone", "+79990000000")
-
-        if extra_fields.get("is_staff") is not True:
-            raise ValueError("Superuser must have is_staff=True.")
-        if extra_fields.get("is_superuser") is not True:
-            raise ValueError("Superuser must have is_superuser=True.")
-        return self.create_user(email, password, **extra_fields)
+from core.constants import (
+    AVATAR_COLORS,
+    AVATAR_DEFAULT_LETTER,
+    AVATAR_FONT_PATHS,
+    AVATAR_FONT_SIZE_RATIO,
+    AVATAR_FORMAT,
+    AVATAR_IMAGE_SIZE,
+    AVATAR_SHADOW_COLOR,
+    AVATAR_SHADOW_OFFSET,
+    AVATAR_TEXT_ANCHOR,
+    AVATAR_TEXT_COLOR,
+    AVATAR_UPLOAD_DIR,
+    USER_ABOUT_MAX_LENGTH,
+    USER_NAME_MAX_LENGTH,
+    USER_PHONE_MAX_LENGTH,
+    USER_SURNAME_MAX_LENGTH,
+)
+from .managers import UserManager
 
 
 class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField("Адрес электронной почты", unique=True)
-    name = models.CharField("Имя", max_length=124)
-    surname = models.CharField("Фамилия", max_length=124)
-    avatar = models.ImageField("Аватар", upload_to="avatars/", blank=True)
-    phone = models.CharField("Телефон", max_length=12, blank=True)
+    name = models.CharField("Имя", max_length=USER_NAME_MAX_LENGTH)
+    surname = models.CharField("Фамилия", max_length=USER_SURNAME_MAX_LENGTH)
+    avatar = models.ImageField("Аватар", upload_to=AVATAR_UPLOAD_DIR, blank=True)
+    phone = models.CharField("Телефон", max_length=USER_PHONE_MAX_LENGTH, blank=True)
     github_url = models.URLField("Ссылка на GitHub", blank=True)
-    about = models.TextField("О себе", max_length=256, blank=True)
+    about = models.TextField("О себе", max_length=USER_ABOUT_MAX_LENGTH, blank=True)
     is_active = models.BooleanField("Активный пользователь", default=True)
     is_staff = models.BooleanField("Администратор", default=False)
     date_joined = models.DateTimeField("Дата регистрации", auto_now_add=True)
@@ -51,7 +45,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     REQUIRED_FIELDS = ["name", "surname"]
 
     class Meta:
-        ordering = ["-id"]
+        ordering = ["-date_joined", "-id"]
         verbose_name = "Пользователь"
         verbose_name_plural = "Пользователи"
 
@@ -67,40 +61,50 @@ class User(AbstractBaseUser, PermissionsMixin):
         return f"avatar_{uuid.uuid4()}.png"
 
     def _generate_avatar(self) -> ContentFile:
-        colors = [
-            (37, 99, 235),    # blue
-            (22, 163, 74),    # green
-            (147, 51, 234),   # purple
-            (220, 38, 38),    # red
-            (234, 88, 12),    # orange
-            (8, 145, 178),    # cyan
-            (219, 39, 119),   # pink
-        ]
-        bg_color = random.choice(colors)
-        image = Image.new("RGB", (256, 256), color=bg_color)
+        bg_color = self._avatar_color()
+        image = Image.new("RGB", (AVATAR_IMAGE_SIZE, AVATAR_IMAGE_SIZE), color=bg_color)
         draw = ImageDraw.Draw(image)
-        letter = (self.name[:1] or self.email[:1] or "U").upper()
+        letter = (self.name[:1] or self.email[:1] or AVATAR_DEFAULT_LETTER).upper()
         font = self._avatar_font()
+        center = self._avatar_center()
+        shadow_center = (center[0] + AVATAR_SHADOW_OFFSET, center[1] + AVATAR_SHADOW_OFFSET)
 
-        # A small shadow keeps the letter readable even after the image is scaled
-        # down to 24-50 px in project and participant cards.
-        draw.text((132, 132), letter, fill=(0, 0, 0), font=font, anchor="mm")
-        draw.text((128, 128), letter, fill=(255, 255, 255), font=font, anchor="mm")
+        draw.text(
+            shadow_center,
+            letter,
+            fill=AVATAR_SHADOW_COLOR,
+            font=font,
+            anchor=AVATAR_TEXT_ANCHOR,
+        )
+        draw.text(
+            center,
+            letter,
+            fill=AVATAR_TEXT_COLOR,
+            font=font,
+            anchor=AVATAR_TEXT_ANCHOR,
+        )
 
         buffer = BytesIO()
-        image.save(buffer, format="PNG")
+        image.save(buffer, format=AVATAR_FORMAT)
         return ContentFile(buffer.getvalue())
+
+    def _avatar_color(self) -> tuple[int, int, int]:
+        key = self.email or self.name or AVATAR_DEFAULT_LETTER
+        digest = hashlib.sha256(key.encode("utf-8")).hexdigest()
+        color_index = int(digest[:8], 16) % len(AVATAR_COLORS)
+        return AVATAR_COLORS[color_index]
+
+    @staticmethod
+    def _avatar_center() -> tuple[int, int]:
+        coordinate = AVATAR_IMAGE_SIZE // 2
+        return coordinate, coordinate
 
     @staticmethod
     def _avatar_font():
-        font_paths = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-            "/usr/local/share/fonts/DejaVuSans-Bold.ttf",
-            "DejaVuSans-Bold.ttf",
-        ]
-        for font_path in font_paths:
+        font_size = int(AVATAR_IMAGE_SIZE * AVATAR_FONT_SIZE_RATIO)
+        for font_path in AVATAR_FONT_PATHS:
             try:
-                return ImageFont.truetype(font_path, 152)
+                return ImageFont.truetype(font_path, font_size)
             except OSError:
                 continue
-        return ImageFont.load_default(size=152)
+        return ImageFont.load_default(size=font_size)

@@ -24,8 +24,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "users",
-    "projects",
+    "core.apps.CoreConfig",
+    "users.apps.UsersConfig",
+    "projects.apps.ProjectsConfig",
 ]
 
 MIDDLEWARE = [
@@ -43,7 +44,7 @@ ROOT_URLCONF = "team_finder.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / f"templates_var{config('TASK_VERSION', default='3')}"],
+        "DIRS": [BASE_DIR / "templates_var3"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -78,9 +79,9 @@ else:
 
 AUTH_USER_MODEL = "users.User"
 AUTHENTICATION_BACKENDS = ["django.contrib.auth.backends.ModelBackend"]
-LOGIN_URL = "/users/login/"
-LOGIN_REDIRECT_URL = "/projects/list/"
-LOGOUT_REDIRECT_URL = "/projects/list/"
+LOGIN_URL = "users:login"
+LOGIN_REDIRECT_URL = "projects:list"
+LOGOUT_REDIRECT_URL = "projects:list"
 
 AUTH_PASSWORD_VALIDATORS = []
 if not DEBUG:

@@ -11,9 +11,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("projects/", include("projects.urls")),
     path("users/", include("users.urls")),
-    # Alias from the task text: /project/list/ should behave like the projects list.
-    path("project/list/", project_views.project_list),
-    path("project/list", project_views.project_list),
+    path("project/list/", project_views.project_list, name="legacy_project_list"),
 ]
 
 if settings.DEBUG:
